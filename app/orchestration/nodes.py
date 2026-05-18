@@ -10,10 +10,6 @@ from app.data.schema_mapper import (
     standardize_schema
 )
 
-from app.insights.extractor import (
-    generate_dataset_insights
-)
-
 from app.agents.commentary_agent import (
     generate_financial_commentary
 )
@@ -38,6 +34,18 @@ from app.rag.query_engine import (
     generate_rag_response
 )
 
+from app.intelligence.column_detector import (
+    detect_numeric_targets
+)
+
+from app.intelligence.target_selector import (
+    select_forecast_target
+)
+
+from app.intelligence.insight_targets import (
+    select_primary_metric
+)
+
 
 def ingestion_node(state):
 
@@ -58,7 +66,41 @@ def insight_node(state):
 
     df = state["df"]
 
-    insights = generate_dataset_insights(df)
+    numeric_columns = (
+        detect_numeric_targets(df)
+    )
+
+    primary_metric = (
+        select_primary_metric(
+            numeric_columns
+        )
+    )
+
+    if primary_metric is None:
+
+        state["insights"] = (
+            "No meaningful metrics detected."
+        )
+
+        state["commentary"] = (
+            "Unable to generate commentary."
+        )
+
+        return state
+
+    insights = f"""
+Primary Analytical Metric:
+{primary_metric}
+
+Average Value:
+{round(df[primary_metric].mean(), 2)}
+
+Maximum Value:
+{round(df[primary_metric].max(), 2)}
+
+Minimum Value:
+{round(df[primary_metric].min(), 2)}
+"""
 
     commentary = generate_financial_commentary(
         insights
@@ -75,13 +117,38 @@ def forecast_node(state):
 
     df = state["df"]
 
+    numeric_columns = (
+        detect_numeric_targets(df)
+    )
+
+    target_column = (
+    select_forecast_target(
+        df,
+        numeric_columns
+    )
+)
+
+    if target_column is None:
+
+        state["forecast_summary"] = (
+            "No suitable forecast target "
+            "was detected."
+        )
+
+        return state
+
     forecast_df = forecast_future_values(
         df,
-        target_column="revenue"
+        target_column=target_column
     )
 
     summary = generate_forecast_summary(
         forecast_df
+    )
+
+    summary += (
+        f"\n\nSelected Forecast Target: "
+        f"{target_column}"
     )
 
     state["forecast_summary"] = summary
@@ -93,10 +160,31 @@ def anomaly_node(state):
 
     df = state["df"]
 
+    numeric_columns = (
+        detect_numeric_targets(df)
+    )
+
+    if not numeric_columns:
+
+        state["anomaly_summary"] = (
+            "No numeric columns found "
+            "for anomaly detection."
+        )
+
+        return state
+
     anomaly_df = detect_anomalies(df)
 
     summary = generate_anomaly_summary(
         anomaly_df
+    )
+
+    summary += (
+        "\n\nAnalyzed Columns:\n"
+    )
+
+    summary += (
+        ", ".join(numeric_columns)
     )
 
     state["anomaly_summary"] = summary

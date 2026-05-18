@@ -17,11 +17,17 @@ from app.api.routes.query import (
 )
 
 
+from app.api.routes.upload import (
+    router as upload_router
+)
+
+
 app = FastAPI(
     title="FinanceGPT API",
     version="1.0.0"
 )
 
+app.include_router(upload_router)
 
 app.include_router(
     analysis_router

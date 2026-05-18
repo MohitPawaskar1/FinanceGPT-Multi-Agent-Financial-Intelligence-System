@@ -10,7 +10,7 @@ def test_workflow():
     state = {
 
         "file_path":
-        "datasets/sample_financial_data.csv",
+        "datasets/walmart_dataset.csv",
 
         "user_query":
         "Will business growth continue next quarter?"

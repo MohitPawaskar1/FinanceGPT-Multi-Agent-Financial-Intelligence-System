@@ -1,5 +1,7 @@
 from fastapi import APIRouter
 
+from pydantic import BaseModel
+
 from app.orchestration.workflow import (
     build_workflow
 )
@@ -11,15 +13,24 @@ router = APIRouter(
 )
 
 
+class AnalysisRequest(
+    BaseModel
+):
+
+    file_path: str
+
+
 @router.post("/run")
-def run_analysis():
+def run_analysis(
+    request: AnalysisRequest
+):
 
     workflow = build_workflow()
 
     state = {
 
         "file_path":
-        "datasets/sample_financial_data.csv",
+        request.file_path,
 
         "user_query":
         "Analyze financial performance"
