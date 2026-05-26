@@ -1,45 +1,102 @@
+import pandas as pd
+
+
+# =========================================
+# DATE COLUMN DETECTION
+# =========================================
+
 def detect_date_columns(df):
 
-    possible_dates = []
+    detected_dates = []
 
-    for col in df.columns:
+    for column in df.columns:
 
-        col_lower = col.lower()
+        column_lower = (
+            column.lower()
+        )
 
-        if (
-            "date" in col_lower
-            or "time" in col_lower
-            or "year" in col_lower
+        # =================================
+        # NAME-BASED DETECTION
+        # =================================
+
+        if any(
+
+            keyword in column_lower
+
+            for keyword in [
+
+                "date",
+
+                "time",
+
+                "timestamp",
+
+                "created",
+
+                "booking",
+
+                "invoice"
+            ]
         ):
 
-            possible_dates.append(col)
+            detected_dates.append(
+                column
+            )
 
-    return possible_dates
+            continue
 
+        # =================================
+        # DATETIME PARSE TEST
+        # =================================
+
+        try:
+
+            parsed = pd.to_datetime(
+                df[column]
+            )
+
+            if (
+                parsed.notna().sum()
+                > len(df) * 0.7
+            ):
+
+                detected_dates.append(
+                    column
+                )
+
+        except:
+
+            pass
+
+    return list(
+        set(detected_dates)
+    )
+
+
+# =========================================
+# NUMERIC TARGET DETECTION
+# =========================================
 
 def detect_numeric_targets(df):
 
-    numeric_cols = df.select_dtypes(
-        include=["number"]
-    ).columns.tolist()
+    numeric_columns = []
 
-    ignored_keywords = [
-        "store",
-        "id",
-        "index"
-    ]
+    for column in df.columns:
 
-    filtered = []
-
-    for col in numeric_cols:
-
-        col_lower = col.lower()
-
-        if not any(
-            keyword in col_lower
-            for keyword in ignored_keywords
+        if pd.api.types.is_numeric_dtype(
+            df[column]
         ):
 
-            filtered.append(col)
+            # Exclude binary columns
 
-    return filtered
+            unique_values = (
+                df[column].nunique()
+            )
+
+            if unique_values > 5:
+
+                numeric_columns.append(
+                    column
+                )
+
+    return numeric_columns

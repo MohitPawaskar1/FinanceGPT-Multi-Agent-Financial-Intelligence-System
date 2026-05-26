@@ -1,6 +1,6 @@
-from fastapi import (
-    APIRouter
-)
+from fastapi import APIRouter
+
+from pydantic import BaseModel
 
 from app.data.loader import (
     load_financial_data
@@ -8,10 +8,6 @@ from app.data.loader import (
 
 from app.data.preprocessing import (
     preprocess_financial_data
-)
-
-from app.data.schema_mapper import (
-    standardize_schema
 )
 
 from app.anomaly_detection.detector import (
@@ -22,36 +18,138 @@ from app.anomaly_detection.commentary import (
     generate_anomaly_summary
 )
 
+from app.intelligence.column_detector import (
+    detect_numeric_targets
+)
 
-router = APIRouter(
-    prefix="/anomalies",
-    tags=["Anomalies"]
+from app.intelligence.target_selector import (
+    select_forecast_target
 )
 
 
-@router.post("/run")
-def run_anomaly_detection():
+router = APIRouter()
 
-    file_path = (
-        "datasets/sample_financial_data.csv"
-    )
 
-    df = load_financial_data(file_path)
+class AnomalyRequest(BaseModel):
 
-    df = preprocess_financial_data(df)
+    file_path: str
 
-    df = standardize_schema(df)
 
-    anomaly_df = detect_anomalies(df)
+@router.post("/anomalies/run")
 
-    summary = generate_anomaly_summary(
-        anomaly_df
-    )
+def run_anomaly_detection(
+    request: AnomalyRequest
+):
 
-    return {
-        "results":
-        anomaly_df.to_dict(),
+    try:
 
-        "summary":
-        summary
-    }
+        # =================================
+        # LOAD DATA
+        # =================================
+
+        df = load_financial_data(
+            request.file_path
+        )
+
+        df = preprocess_financial_data(
+            df
+        )
+
+        # =================================
+        # DETECT NUMERIC TARGETS
+        # =================================
+
+        numeric_columns = (
+            detect_numeric_targets(df)
+        )
+
+        if len(numeric_columns) == 0:
+
+            return {
+
+                "summary":
+                "No numeric columns available for anomaly detection."
+            }
+
+        # =================================
+        # TARGET INFO
+        # =================================
+
+        target_info = (
+            select_forecast_target(
+
+                df,
+
+                numeric_columns
+            )
+        )
+
+        target_column = (
+            target_info[
+                "selected_target"
+            ]
+        )
+
+        # =================================
+        # DETECT ANOMALIES
+        # =================================
+
+        anomaly_df = (
+            detect_anomalies(
+
+                df,
+
+                target_column
+            )
+        )
+
+        anomaly_count = len(
+            anomaly_df
+        )
+
+        max_value = (
+            anomaly_df[
+                target_column
+            ].max()
+            if anomaly_count > 0
+            else 0
+        )
+
+        avg_value = round(
+
+            df[
+                target_column
+            ].mean(),
+
+            2
+        )
+
+        # =================================
+        # GENERATE SUMMARY
+        # =================================
+
+        summary = (
+            generate_anomaly_summary(
+
+                anomaly_count,
+
+                target_column,
+
+                max_value,
+
+                avg_value
+            )
+        )
+
+        return {
+
+            "summary": summary
+        }
+
+    except Exception as e:
+
+        return {
+
+            "summary":
+            f"Anomaly detection failed: {str(e)}"
+        }

@@ -2,28 +2,53 @@ from sklearn.ensemble import (
     IsolationForest
 )
 
-from app.anomaly_detection.preprocessing import (
-    prepare_anomaly_features
-)
 
+# =========================================
+# ANOMALY DETECTION ENGINE
+# =========================================
 
-def detect_anomalies(df):
+def detect_anomalies(
 
-    numeric_df = prepare_anomaly_features(
-        df
-    )
+    df,
+
+    target_column
+):
+
+    # =====================================
+    # PREPARE DATA
+    # =====================================
+
+    anomaly_df = df[[
+        target_column
+    ]].copy()
+
+    # =====================================
+    # BUILD MODEL
+    # =====================================
 
     model = IsolationForest(
-    contamination="auto",
-    random_state=42
-)
 
-    predictions = model.fit_predict(
-        numeric_df
+        contamination=0.02,
+
+        random_state=42
     )
 
-    result_df = df.copy()
+    # =====================================
+    # DETECT OUTLIERS
+    # =====================================
 
-    result_df["anomaly"] = predictions
+    anomaly_df["anomaly"] = (
+        model.fit_predict(
+            anomaly_df
+        )
+    )
 
-    return result_df
+    # =====================================
+    # FILTER ANOMALIES
+    # =====================================
+
+    anomalies = df[
+        anomaly_df["anomaly"] == -1
+    ]
+
+    return anomalies

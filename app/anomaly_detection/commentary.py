@@ -1,24 +1,47 @@
-def generate_anomaly_summary(df):
+def generate_anomaly_summary(
 
-    anomaly_count = (
-        df["anomaly"] == -1
-    ).sum()
+    anomaly_count,
+
+    target_column,
+
+    max_value,
+
+    avg_value
+):
 
     if anomaly_count == 0:
 
-        return (
-            "No significant anomalies "
-            "were detected."
-        )
+        return f"""
 
-    summary = f"""
-Detected {anomaly_count}
-potential anomalous records.
+No significant anomalies were detected.
 
-These records may indicate:
-- unusual financial behavior
-- unexpected operational changes
-- abnormal transaction patterns
+The operational patterns within
+{target_column} appear stable
+and consistent with expected
+business behavior.
 """
 
-    return summary
+    return f"""
+
+Detected {anomaly_count} statistically
+significant anomalous records.
+
+The analysis identified unusual
+behavior within the {target_column}
+metric, where certain transactions
+deviated substantially from normal
+operational patterns.
+
+Observed anomalies include
+high-value transactional activity
+exceeding the average operational
+range of {round(avg_value, 2)}.
+
+The highest detected anomalous
+value reached approximately
+{round(max_value, 2)},
+indicating potential premium
+customer activity, exceptional
+transactions, or irregular
+business events requiring review.
+"""

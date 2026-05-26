@@ -1,27 +1,55 @@
 import pandas as pd
 
 
+# =========================================
+# FORECAST PREPROCESSING
+# =========================================
+
 def prepare_forecasting_data(
-    df: pd.DataFrame,
-    target_column: str
+
+    df,
+
+    target_column,
+
+    date_column
 ):
 
-    forecast_df = df.copy()
+    forecast_df = df[[
+        date_column,
+        target_column
+    ]].copy()
 
-    forecast_df["date"] = pd.to_datetime(
-        forecast_df["date"]
+    # =====================================
+    # DATE CONVERSION
+    # =====================================
+
+    forecast_df[
+        date_column
+    ] = pd.to_datetime(
+
+        forecast_df[
+            date_column
+        ],
+
+        errors="coerce"
     )
 
-    forecast_df = forecast_df.sort_values(
-        by="date"
+    # =====================================
+    # REMOVE INVALID ROWS
+    # =====================================
+
+    forecast_df = (
+        forecast_df.dropna()
     )
 
-    forecast_df["time_index"] = range(
-        len(forecast_df)
+    # =====================================
+    # SORT VALUES
+    # =====================================
+
+    forecast_df = (
+        forecast_df.sort_values(
+            by=date_column
+        )
     )
 
-    X = forecast_df[["time_index"]]
-
-    y = forecast_df[target_column]
-
-    return X, y, forecast_df
+    return forecast_df
