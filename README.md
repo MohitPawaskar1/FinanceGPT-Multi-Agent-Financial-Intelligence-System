@@ -403,7 +403,7 @@ FinanceGPT/
 ## Clone Repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/FinanceGPT-AI-Financial-Intelligence-System.git
+git clone https://github.com/mohitpawaskar/FinanceGPT-Multi-Agent-Financial-Intelligence-System.git
 
 cd FinanceGPT-AI-Financial-Intelligence-System
 ```
