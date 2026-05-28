@@ -1,4 +1,4 @@
-````markdown
+
 # FinanceGPT – AI-Powered Financial Intelligence Platform
 
 [![Python](https://img.shields.io/badge/Python-3.11-blue?style=for-the-badge&logo=python)](https://www.python.org/)
@@ -578,4 +578,4 @@ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 
 ```
-```
+
