@@ -169,7 +169,7 @@ if uploaded_file is not None:
 
         result = safe_post_request(
 
-            "http://127.0.0.1:8000/upload/",
+            "https://financegpt-multi-agent-financial.onrender.com/upload/",
 
             files=files
         )
@@ -452,7 +452,7 @@ Pie chart skipped:
 
             result = safe_post_request(
 
-                "http://127.0.0.1:8000/analysis/run",
+                "https://financegpt-multi-agent-financial.onrender.com/analysis/run",
 
                 json_data={
                     "file_path":
@@ -501,7 +501,7 @@ Pie chart skipped:
 
             result = safe_post_request(
 
-                "http://127.0.0.1:8000/forecast/run",
+                "https://financegpt-multi-agent-financial.onrender.com/forecast/run",
 
                 json_data={
                     "file_path":
@@ -540,7 +540,7 @@ Pie chart skipped:
 
             result = safe_post_request(
 
-                "http://127.0.0.1:8000/anomalies/run",
+                "https://financegpt-multi-agent-financial.onrender.com/anomalies/run",
 
                 json_data={
                     "file_path":
@@ -599,7 +599,7 @@ Pie chart skipped:
 
                 result = safe_post_request(
 
-                    "http://127.0.0.1:8000/query/run",
+                    "https://financegpt-multi-agent-financial.onrender.com/query/run",
 
                     json_data={
 
