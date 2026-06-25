@@ -11,18 +11,12 @@ import streamlit as st
 import requests
 import pandas as pd
 
-from app.data.loader import (
-    load_financial_data
-)
-
 from app.data.preprocessing import (
     preprocess_financial_data
 )
 
 from app.visualization.charts import (
-
     generate_histogram,
-
     generate_pie_chart
 )
 
@@ -35,30 +29,32 @@ from dashboard.styles import (
 )
 
 
-# =========================================
-# PAGE CONFIG
-# =========================================
+# =====================================
+# CONFIG
+# =====================================
 
 st.set_page_config(
-
     page_title="FinanceGPT",
-
     layout="wide"
 )
 
 apply_dashboard_styling()
 
+BACKEND = (
+    "https://financegpt-multi-agent-financial.onrender.com"
+)
 
-# =========================================
+
+# =====================================
 # HEADER
-# =========================================
+# =====================================
 
 st.title(
     "FinanceGPT Executive Workspace"
 )
 
 st.markdown(
-    """
+"""
 AI-Powered Financial Intelligence Platform
 for Dynamic Business Analytics,
 Forecasting, and Risk Detection
@@ -68,20 +64,31 @@ Forecasting, and Risk Detection
 st.divider()
 
 
-# =========================================
-# SESSION STATE
-# =========================================
+# =====================================
+# SESSION
+# =====================================
 
-if "file_path" not in st.session_state:
+defaults = {
 
-    st.session_state["file_path"] = None
+    "file_path": None,
+    "uploaded_df": None,
+    "preview": None,
+    "target_info": None
+
+}
+
+for k, v in defaults.items():
+
+    if k not in st.session_state:
+
+        st.session_state[k] = v
 
 
-# =========================================
-# SAFE API REQUEST
-# =========================================
+# =====================================
+# REQUEST
+# =====================================
 
-def safe_post_request(
+def safe_post(
     url,
     files=None,
     json_data=None
@@ -89,381 +96,330 @@ def safe_post_request(
 
     try:
 
-        response = requests.post(
-
+        r = requests.post(
             url,
-
             files=files,
-
             json=json_data,
-
             timeout=120
         )
 
-        if response.status_code != 200:
+        if r.status_code != 200:
 
             st.error(
-                f"""
-API Error
-
-Status Code:
-{response.status_code}
-
-Response:
-{response.text}
-"""
+                f"API Error\n\n{r.text}"
             )
 
             return None
 
-        try:
-
-            return response.json()
-
-        except Exception:
-
-            st.error(
-                f"""
-Invalid JSON Response
-
-Raw Response:
-
-{response.text}
-"""
-            )
-
-            return None
+        return r.json()
 
     except Exception as e:
 
-        st.error(
-            f"""
-Backend Connection Error
-
-{e}
-"""
-        )
+        st.error(str(e))
 
         return None
 
 
-# =========================================
-# DATASET UPLOAD
-# =========================================
+# =====================================
+# UPLOAD
+# =====================================
 
-uploaded_file = st.file_uploader(
+uploaded = st.file_uploader(
 
-    "Upload CSV or Excel Dataset",
+    "Upload Dataset",
 
-    type=["csv", "xlsx"]
+    type=[
+        "csv",
+        "xlsx"
+    ]
 )
 
-if uploaded_file is not None:
+if uploaded:
 
     with st.spinner(
-        "Uploading dataset..."
+        "Uploading..."
     ):
 
-        files = {
+        try:
 
-            "uploaded_file": (
+            uploaded.seek(0)
 
-                uploaded_file.name,
+            if uploaded.name.endswith(
+                ".csv"
+            ):
 
-                uploaded_file,
+                local_df = (
+                    pd.read_csv(
+                        uploaded
+                    )
+                )
 
-                uploaded_file.type
+            else:
+
+                local_df = (
+                    pd.read_excel(
+                        uploaded
+                    )
+                )
+
+            st.session_state[
+                "uploaded_df"
+            ] = local_df
+
+            st.session_state[
+                "preview"
+            ] = (
+                local_df
+                .head(20)
+                .to_dict(
+                    "records"
+                )
             )
-        }
 
-        result = safe_post_request(
+            uploaded.seek(0)
 
-            "https://financegpt-multi-agent-financial.onrender.com/upload/",
+            result = safe_post(
 
-            files=files
+                f"{BACKEND}/upload/",
+
+                files={
+
+                    "uploaded_file": (
+
+                        uploaded.name,
+
+                        uploaded,
+
+                        uploaded.type
+                    )
+                }
+            )
+
+            if result:
+
+                st.session_state[
+                    "file_path"
+                ] = (
+                    result.get(
+                        "file_path"
+                    )
+                )
+
+                st.session_state[
+                    "target_info"
+                ] = (
+                    result.get(
+                        "target_info"
+                    )
+                )
+
+                st.success(
+                    "Dataset uploaded successfully."
+                )
+
+        except Exception as e:
+
+            st.error(str(e))
+
+
+# =====================================
+# DASHBOARD
+# =====================================
+
+if st.session_state[
+    "uploaded_df"
+] is not None:
+
+    try:
+
+        df = (
+            st.session_state[
+                "uploaded_df"
+            ]
         )
 
-        if result is not None:
-
-            st.session_state["file_path"] = (
-                result["file_path"]
+        df = (
+            preprocess_financial_data(
+                df
             )
+        )
 
-            st.session_state["target_info"] = (
-                result["target_info"]
-            )
+    except Exception:
 
-            st.session_state["columns"] = (
-                result["columns"]
-            )
+        st.warning(
+            "Upload dataset again."
+        )
 
-            st.session_state["shape"] = (
-                result["shape"]
-            )
+        st.stop()
 
-            st.session_state["preview"] = (
-                result["preview"]
-            )
+    target = None
 
-            st.session_state["numeric_columns"] = (
-                result["numeric_columns"]
-            )
-
-            st.success(
-                "Dataset uploaded successfully."
-            )
-
-
-# =========================================
-# MAIN DASHBOARD
-# =========================================
-
-if st.session_state["file_path"] is not None:
-
-    # =====================================
-    # LOAD DATA
-    # =====================================
-
-    df = load_financial_data(
-        st.session_state["file_path"]
-    )
-
-    df = preprocess_financial_data(df)
-
-    target_info = (
+    if (
         st.session_state[
             "target_info"
         ]
-    )
+        is not None
+    ):
 
-    target_column = (
-        target_info[
-            "selected_target"
-        ]
-    )
+        target = (
+            st.session_state[
+                "target_info"
+            ].get(
+                "selected_target"
+            )
+        )
 
-    # =====================================
-    # KPI ENGINE
-    # =====================================
+    if (
+        target
+        not in df.columns
+    ):
 
-    kpis = calculate_kpis(
+        numeric = (
+            df
+            .select_dtypes(
+                include="number"
+            )
+            .columns
+        )
 
-        df,
+        target = (
+            numeric[0]
+            if len(
+                numeric
+            )
+            else None
+        )
 
-        target_column
-    )
+    if target:
 
-    # =====================================
-    # EXECUTIVE KPI OVERVIEW
-    # =====================================
+        kpi = calculate_kpis(
+            df,
+            target
+        )
 
-    st.subheader(
-        "Executive KPI Overview"
-    )
+        st.subheader(
+            "Executive KPI Overview"
+        )
 
-    kpi1, kpi2, kpi3, kpi4 = (
-        st.columns(4)
-    )
+        c1, c2, c3, c4 = (
+            st.columns(4)
+        )
 
-    with kpi1:
-
-        st.metric(
-
-            "Average Value",
-
-            kpis[
+        c1.metric(
+            "Average",
+            kpi[
                 "average_value"
             ]
         )
 
-    with kpi2:
-
-        st.metric(
-
-            "Maximum Value",
-
-            kpis[
+        c2.metric(
+            "Maximum",
+            kpi[
                 "maximum_value"
             ]
         )
 
-    with kpi3:
-
-        st.metric(
-
-            "Minimum Value",
-
-            kpis[
+        c3.metric(
+            "Minimum",
+            kpi[
                 "minimum_value"
             ]
         )
 
-    with kpi4:
-
-        st.metric(
-
-            "Business Trend",
-
-            kpis[
+        c4.metric(
+            "Trend",
+            kpi[
                 "trend_strength"
             ]
         )
 
-    st.divider()
+        st.divider()
 
-    # =====================================
-    # EXECUTIVE VISUAL ANALYTICS
-    # =====================================
+        col1, col2 = (
+            st.columns(2)
+        )
 
-    st.subheader(
-        "Executive Visual Analytics"
-    )
-
-    chart_col1, chart_col2 = (
-        st.columns(2)
-    )
-
-    # =====================================
-    # HISTOGRAM
-    # =====================================
-
-    with chart_col1:
-
-        try:
-
-            histogram_chart = (
-                generate_histogram(
-
-                    df,
-
-                    target_column
-                )
-            )
-
-            st.plotly_chart(
-
-                histogram_chart,
-
-                width="stretch"
-            )
-
-        except Exception as e:
-
-            st.warning(
-                f"""
-Histogram visualization skipped:
-
-{e}
-"""
-            )
-
-    # =====================================
-    # PIE CHART
-    # =====================================
-
-    with chart_col2:
-
-        categorical_columns = [
-
-            col for col in df.columns
-
-            if (
-
-                df[col].dtype == "object"
-
-                or
-
-                df[col].nunique() < 10
-            )
-        ]
-
-        if len(categorical_columns) > 0:
+        with col1:
 
             try:
 
-                pie_chart = (
-                    generate_pie_chart(
-
-                        df,
-
-                        categorical_columns[0]
-                    )
-                )
-
                 st.plotly_chart(
 
-                    pie_chart,
+                    generate_histogram(
+                        df,
+                        target
+                    ),
 
                     width="stretch"
                 )
 
-            except Exception as e:
+            except:
+                pass
 
-                st.warning(
-                    f"""
-Pie chart skipped:
+        with col2:
 
-{e}
-"""
+            cats = [
+
+                c
+
+                for c in df.columns
+
+                if (
+                    str(
+                        df[c]
+                        .dtype
+                    )
+                    ==
+                    "object"
                 )
+            ]
 
-        else:
+            if cats:
 
-            st.info(
-                "No suitable categorical columns detected for pie chart visualization."
-            )
+                try:
 
-    st.divider()
+                    st.plotly_chart(
 
-    # =====================================
-    # DATASET PREVIEW
-    # =====================================
+                        generate_pie_chart(
+                            df,
+                            cats[0]
+                        ),
+
+                        width="stretch"
+                    )
+
+                except:
+                    pass
+
+        st.divider()
 
     st.subheader(
         "Dataset Preview"
     )
 
-    preview_df = pd.DataFrame(
-        st.session_state["preview"]
-    )
-
     st.dataframe(
-
-        preview_df,
-
+        df.head(20),
         width="stretch"
     )
 
     st.divider()
 
-    # =====================================
-    # AI ANALYTICS WORKFLOW
-    # =====================================
-
-    st.subheader(
-        "AI Analytics Workflow"
-    )
-
-    action1, action2, action3 = (
+    a1, a2, a3 = (
         st.columns(3)
     )
 
-    # =====================================
-    # RUN ANALYSIS
-    # =====================================
-
-    with action1:
+    with a1:
 
         if st.button(
-            "Run Analysis",
-            width="stretch"
+            "Run Analysis"
         ):
 
-            result = safe_post_request(
+            result = safe_post(
 
-                "https://financegpt-multi-agent-financial.onrender.com/analysis/run",
+                f"{BACKEND}/analysis/run",
 
                 json_data={
+
                     "file_path":
                     st.session_state[
                         "file_path"
@@ -471,24 +427,12 @@ Pie chart skipped:
                 }
             )
 
-            if result is not None:
-
-                st.success(
-                    "Business analysis completed."
-                )
-
-                st.subheader(
-                    "Business Insights"
-                )
+            if result:
 
                 st.write(
                     result.get(
                         "insights"
                     )
-                )
-
-                st.subheader(
-                    "Executive Commentary"
                 )
 
                 st.write(
@@ -497,22 +441,18 @@ Pie chart skipped:
                     )
                 )
 
-    # =====================================
-    # RUN FORECAST
-    # =====================================
-
-    with action2:
+    with a2:
 
         if st.button(
-            "Run Forecast",
-            width="stretch"
+            "Run Forecast"
         ):
 
-            result = safe_post_request(
+            result = safe_post(
 
-                "https://financegpt-multi-agent-financial.onrender.com/forecast/run",
+                f"{BACKEND}/forecast/run",
 
                 json_data={
+
                     "file_path":
                     st.session_state[
                         "file_path"
@@ -520,15 +460,7 @@ Pie chart skipped:
                 }
             )
 
-            if result is not None:
-
-                st.success(
-                    "Forecasting completed."
-                )
-
-                st.subheader(
-                    "Forecast Summary"
-                )
+            if result:
 
                 st.write(
                     result.get(
@@ -536,22 +468,18 @@ Pie chart skipped:
                     )
                 )
 
-    # =====================================
-    # DETECT ANOMALIES
-    # =====================================
-
-    with action3:
+    with a3:
 
         if st.button(
-            "Detect Anomalies",
-            width="stretch"
+            "Detect Anomalies"
         ):
 
-            result = safe_post_request(
+            result = safe_post(
 
-                "https://financegpt-multi-agent-financial.onrender.com/anomalies/run",
+                f"{BACKEND}/anomalies/run",
 
                 json_data={
+
                     "file_path":
                     st.session_state[
                         "file_path"
@@ -559,15 +487,7 @@ Pie chart skipped:
                 }
             )
 
-            if result is not None:
-
-                st.success(
-                    "Risk analysis completed."
-                )
-
-                st.subheader(
-                    "Anomaly Summary"
-                )
+            if result:
 
                 st.write(
                     result.get(
@@ -577,64 +497,34 @@ Pie chart skipped:
 
     st.divider()
 
-    # =====================================
-    # QUERY ASSISTANT
-    # =====================================
-
-    st.subheader(
-        "Financial Query Assistant"
-    )
-
-    user_query = st.text_input(
-        "Ask financial questions about the dataset"
+    query = st.text_input(
+        "Ask questions"
     )
 
     if st.button(
-        "Submit Query",
-        width="stretch"
+        "Submit Query"
     ):
 
-        if user_query.strip() == "":
+        result = safe_post(
 
-            st.warning(
-                "Please enter a financial query."
-            )
+            f"{BACKEND}/query/run",
 
-        else:
+            json_data={
 
-            with st.spinner(
-                "Generating AI response..."
-            ):
+                "query":
+                query,
 
-                result = safe_post_request(
+                "file_path":
+                st.session_state[
+                    "file_path"
+                ]
+            }
+        )
 
-                    "https://financegpt-multi-agent-financial.onrender.com/query/run",
+        if result:
 
-                    json_data={
-
-                        "query":
-                        user_query,
-
-                        "file_path":
-                        st.session_state[
-                            "file_path"
-                        ]
-                    }
+            st.write(
+                result.get(
+                    "response"
                 )
-
-                if result is not None:
-
-                    st.success(
-                        "Query processed successfully."
-                    )
-
-                    st.subheader(
-                        "AI Response"
-                    )
-
-                    st.write(
-
-                        result.get(
-                            "response"
-                        )
-                    )
+            )
